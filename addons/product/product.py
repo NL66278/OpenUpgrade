@@ -466,6 +466,10 @@ class product_template(osv.osv):
                     "Error resizing image for product.template %d.",
                     obj.id
                 )
+                result[obj.id] = {
+                    'image_medium': False,
+                    'image_small': False,
+                }
         return result
 
     def _set_image(self, cr, uid, id, name, value, args, context=None):
@@ -985,6 +989,11 @@ class product_product(osv.osv):
                         "Error resizing image for product.product %d.",
                         obj.id
                     )
+                    result[obj.id] = {
+                        'image': False,
+                        'image_medium': False,
+                        'image_small': False,
+                    }
             if not result[obj.id]:
                 result[obj.id] = getattr(obj.product_tmpl_id, name)
         return result
