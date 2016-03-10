@@ -533,6 +533,10 @@ class product_product(osv.osv):
                     obj.image, avoid_resize_medium=True)
             except:
                 _logger.warn("Error resizing image for product %d", obj.id)
+                result[obj.id] = {
+                    'image_medium': False,
+                    'image_small': False,
+                }
         return result
 
     def _set_image(self, cr, uid, id, name, value, args, context=None):
