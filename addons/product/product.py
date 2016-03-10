@@ -21,6 +21,7 @@
 
 import math
 import re
+import logging
 
 from _common import ceiling
 
@@ -30,6 +31,10 @@ from openerp.tools.translate import _
 
 import openerp.addons.decimal_precision as dp
 from openerp.tools.float_utils import float_round
+
+
+_logger = logging.getLogger(__name__)
+
 
 def ean_checksum(eancode):
     """returns the checksum of an ean string of length 13, returns -1 if the string has the wrong length"""
@@ -520,11 +525,14 @@ class product_product(osv.osv):
             }
         return result
 
-
     def _get_image(self, cr, uid, ids, name, args, context=None):
         result = dict.fromkeys(ids, False)
         for obj in self.browse(cr, uid, ids, context=context):
-            result[obj.id] = tools.image_get_resized_images(obj.image, avoid_resize_medium=True)
+            try:
+                result[obj.id] = tools.image_get_resized_images(
+                    obj.image, avoid_resize_medium=True)
+            except:
+                _logger.warn("Error resizing image for product %d", obj.id)
         return result
 
     def _set_image(self, cr, uid, id, name, value, args, context=None):
