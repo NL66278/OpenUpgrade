@@ -22,6 +22,7 @@
 import math
 import re
 import time
+import logging
 from _common import ceiling
 
 
@@ -33,6 +34,10 @@ import psycopg2
 
 import openerp.addons.decimal_precision as dp
 from openerp.tools.float_utils import float_round, float_compare
+
+
+_logger = logging.getLogger(__name__)
+
 
 def ean_checksum(eancode):
     """returns the checksum of an ean string of length 13, returns -1 if the string has the wrong length"""
@@ -453,7 +458,14 @@ class product_template(osv.osv):
     def _get_image(self, cr, uid, ids, name, args, context=None):
         result = dict.fromkeys(ids, False)
         for obj in self.browse(cr, uid, ids, context=context):
-            result[obj.id] = tools.image_get_resized_images(obj.image, avoid_resize_medium=True)
+            try:
+                result[obj.id] = tools.image_get_resized_images(
+                    obj.image, avoid_resize_medium=True)
+            except:
+                _logger.warn(
+                    "Error resizing image for product.template %d.",
+                    obj.id
+                )
         return result
 
     def _set_image(self, cr, uid, id, name, value, args, context=None):
@@ -962,7 +974,17 @@ class product_product(osv.osv):
             if context.get('bin_size'):
                 result[obj.id] = obj.image_variant
             else:
-                result[obj.id] = tools.image_get_resized_images(obj.image_variant, return_big=True, avoid_resize_medium=True)[name]
+                try:
+                    result[obj.id] = tools.image_get_resized_images(
+                        obj.image_variant,
+                        return_big=True,
+                        avoid_resize_medium=True
+                    )[name]
+                except:
+                    _logger.warn(
+                        "Error resizing image for product.product %d.",
+                        obj.id
+                    )
             if not result[obj.id]:
                 result[obj.id] = getattr(obj.product_tmpl_id, name)
         return result
