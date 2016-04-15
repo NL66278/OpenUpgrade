@@ -129,16 +129,19 @@ class stock_move(osv.osv):
                             })[pricelist]
                 if price:
                     return price
-        return move_line.product_id.list_price
+        return move_line.product_id.lst_price
 
     def _get_invoice_line_vals(self, cr, uid, move, partner, inv_type, context=None):
         fp_obj = self.pool.get('account.fiscal.position')
         # Get account_id
         fp = fp_obj.browse(cr, uid, context.get('fp_id')) if context.get('fp_id') else False
+        name = False
         if inv_type in ('out_invoice', 'out_refund'):
             account_id = move.product_id.property_account_income.id
             if not account_id:
                 account_id = move.product_id.categ_id.property_account_income_categ.id
+            if move.procurement_id and move.procurement_id.sale_line_id:
+                name = move.procurement_id.sale_line_id.name
         else:
             account_id = move.product_id.property_account_expense.id
             if not account_id:
@@ -156,7 +159,7 @@ class stock_move(osv.osv):
         taxes_ids = self._get_taxes(cr, uid, move, context=context)
 
         return {
-            'name': move.name,
+            'name': name or move.name,
             'account_id': account_id,
             'product_id': move.product_id.id,
             'uos_id': uos_id,
@@ -179,6 +182,11 @@ class stock_move(osv.osv):
             else:
                 is_extra_move[move.id] = False
         return (is_extra_move, extra_move_tax)
+
+    def action_cancel(self, cr, uid, ids, context=None):
+        res = super(stock_move, self).action_cancel(cr, uid, ids, context=context)
+        self.write(cr, uid, ids, {'invoice_state': 'none'}, context=context)
+        return res
 
 #----------------------------------------------------------
 # Picking
@@ -252,7 +260,7 @@ class stock_picking(osv.osv):
         context = context or {}
         todo = {}
         for picking in self.browse(cr, uid, ids, context=context):
-            partner = self._get_partner_to_invoice(cr, uid, picking, context)
+            partner = self._get_partner_to_invoice(cr, uid, picking, dict(context, type=type))
             #grouping is based on the invoiced partner
             if group:
                 key = partner
@@ -271,7 +279,7 @@ class stock_picking(osv.osv):
     def _get_invoice_vals(self, cr, uid, key, inv_type, journal_id, move, context=None):
         if context is None:
             context = {}
-        partner, currency_id, company_id, user_id = key
+        partner, currency_id, company_id = key
         if inv_type in ('out_invoice', 'out_refund'):
             account_id = partner.property_account_receivable.id
             payment_term = partner.property_payment_term.id or False
@@ -281,7 +289,7 @@ class stock_picking(osv.osv):
         return {
             'origin': move.picking_id.name,
             'date_invoice': context.get('date_inv', False),
-            'user_id': user_id,
+            'user_id': uid,
             'partner_id': partner.id,
             'account_id': account_id,
             'payment_term': payment_term,
@@ -303,7 +311,7 @@ class stock_picking(osv.osv):
             origin = move.picking_id.name
             partner, user_id, currency_id = move_obj._get_master_data(cr, uid, move, company, context=context)
 
-            key = (partner, currency_id, company.id, user_id)
+            key = (partner, currency_id, company.id)
             invoice_vals = self._get_invoice_vals(cr, uid, key, inv_type, journal_id, move, context=context)
 
             if key not in invoices:
