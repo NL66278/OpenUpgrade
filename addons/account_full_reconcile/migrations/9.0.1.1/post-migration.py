@@ -462,6 +462,65 @@ def migrate_reconcile(cr):
         """
     )
     _logger.info("Updated account_move_line *_cash_basis.")
+    # Now update fields in account.invoice
+    cr.execute(
+        """\
+        WITH amounts AS (
+            SELECT
+                ai.id as invoice_id,
+                CASE
+                WHEN ai.type IN ('in_refund', 'out_refund')
+                THEN -1.0
+                ELSE 1.0
+                END as invoice_sign,
+                CASE
+                WHEN NOT COALESCE(aa.internal_type, '')
+                    IN ('receivable', 'payable')
+                THEN 0.0
+                ELSE aml.amount_residual
+                END as residual_company_signed,
+                CASE
+                WHEN NOT COALESCE(aa.internal_type, '')
+                    IN ('receivable', 'payable')
+                THEN 0.0
+                WHEN aml.amount_residual_currency != 0.0
+                THEN aml.amount_residual_currency
+                ELSE aml.amount_residual
+                END as residual_company
+            FROM account_invoice ai
+            LEFT OUTER JOIN account_invoice_account_move_line_rel ai_aml
+                 ON ai.id = ai_aml.account_invoice_id
+            LEFT OUTER JOIN account_move_line aml
+                 ON ai_aml.account_move_line_id = aml.id
+            LEFT OUTER JOIN account_account aa
+                 ON aml.account_id = aa.id
+        ),
+        subquery AS (
+            SELECT
+                invoice_id,
+                CASE
+                WHEN aj.type IN ('sale', 'purchase')
+                THEN am.matched_percentage * aml.debit
+                ELSE aml.debit
+                END as debit_cash_basis,
+                CASE
+                WHEN ai.residual = 0.0
+                THEN true
+                ELSE false
+                END as reconciled
+            FROM amounts
+        )
+        UPDATE account_invoice
+        SET
+            residual = ROUND(sq.debit_residual, 2),
+            residual_signed = ROUND(sq.residual_signed, 2),
+            residual_company_signed = ROUND(sq.residual_company_signed, 2),
+            reconciled = sq.reconciled,
+        FROM subquery sq
+        WHERE account_invoice.id = sq.invoice_id
+        """
+    )
+    _logger.info("Updated account_invoice residual* and reconciled.")
 
 
 @openupgrade.migrate(no_version=True, use_env=True)

@@ -190,6 +190,10 @@ def blacklist_field_recomputation(env):
     from openerp.addons.account.models.account_invoice import \
         AccountInvoice, AccountInvoiceLine
     AccountInvoice._openupgrade_recompute_fields_blacklist = [
+        'residual',
+        'residual_signed',
+        'residual_company_signed',
+        'reconciled',
         'payment_move_line_ids',
     ]
     AccountInvoiceLine._openupgrade_recompute_fields_blacklist = [
